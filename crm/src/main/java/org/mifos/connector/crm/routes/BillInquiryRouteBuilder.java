@@ -8,20 +8,20 @@ import org.apache.camel.Exchange;
 import org.mifos.connector.common.camel.ErrorHandlerRouteBuilder;
 import org.mifos.connector.crm.data.Bill;
 import org.mifos.connector.crm.data.BillInquiryResponseDTO;
+import org.mifos.connector.crm.properties.BillPayProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
 
-    @Value("${billPay.billIdInvalidId}")
-    private String billIdInvalidId;
+    private final ObjectMapper objectMapper;
 
-    @Value("${billPay.billIdEmptyId}")
-    private String billIdEmptyId;
+    private final String billIdInvalidId;
+
+    private final String billIdEmptyId;
 
     private Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -30,6 +30,12 @@ public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
 
     @Autowired
     private Bill billDetails;
+
+    public BillInquiryRouteBuilder(BillPayProperties billPayProperties, ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        this.billIdInvalidId = billPayProperties.billIdInvalidId();
+        this.billIdEmptyId = billPayProperties.billIdEmptyId();
+    }
 
     @Override
     public void configure() {
@@ -58,7 +64,6 @@ public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
                     }
                     exchange.setProperty(BILL_INQUIRY_RESPONSE, billInquiryResponseDTO);
                     exchange.setProperty(AMOUNT, billInquiryResponseDTO.getBillDetails().getAmountonDueDate());
-                    ObjectMapper objectMapper = new ObjectMapper();
                     String jsonString = objectMapper.writeValueAsString(billInquiryResponseDTO);
                     exchange.getIn().setBody(jsonString);
                     logger.debug("Bill Inquiry Response: {}", jsonString);

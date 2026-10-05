@@ -8,14 +8,13 @@ import io.camunda.zeebe.client.ZeebeClient;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
 import jakarta.annotation.PostConstruct;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
 import org.json.JSONObject;
 import org.mifos.connector.crm.data.BillPaymentsReqDTO;
+import org.mifos.connector.crm.properties.StatusProperties;
 import org.mifos.connector.crm.utils.Headers;
 import org.mifos.connector.crm.utils.SpringWrapperUtil;
 import org.slf4j.Logger;
@@ -44,13 +43,14 @@ public class ZeebeWorkers {
     @Value("${zeebe.client.evenly-allocated-max-jobs}")
     private int workerMaxJobs;
 
-    @Value("${status.billReqAcceptedId}")
-    private String billReqAcceptedId;
+    private final String billReqAcceptedId;
 
-    @Value("${status.billTimeout}")
-    private int billTimeout;
+    private final int billTimeout;
 
-    private static final ScheduledExecutorService scheduledThreadPoolExecutor = Executors.newScheduledThreadPool(10);
+    public ZeebeWorkers(StatusProperties statusProperties) {
+        this.billReqAcceptedId = statusProperties.billReqAcceptedId();
+        this.billTimeout = statusProperties.billTimeout();
+    }
 
     @PostConstruct
     public void setupWorkers() {
@@ -71,7 +71,7 @@ public class ZeebeWorkers {
             variables.put(BILL_INQUIRY_RESPONSE, exchange.getProperty(BILL_INQUIRY_RESPONSE));
             variables.put(BILL_FETCH_FAILED, exchange.getProperty(BILL_FETCH_FAILED));
             variables.put(AMOUNT, exchange.getProperty(AMOUNT));
-            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send();
+            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
         }).name("fetch-bill").maxJobsActive(workerMaxJobs).open();
 
@@ -97,7 +97,7 @@ public class ZeebeWorkers {
             variables.put("reason", exchange.getProperty("reason"));
             variables.put("state", "ACCEPTED");
             variables.put(BILL_PAY_FAILED, exchange.getProperty(BILL_PAY_FAILED));
-            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send();
+            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
         }).name("billPay").maxJobsActive(workerMaxJobs).open();
 
@@ -110,7 +110,7 @@ public class ZeebeWorkers {
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             // check before implementing
             producerTemplate.send("direct:send-ack", exchange);
-            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send();
+            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
         }).name("billRtpAck").maxJobsActive(workerMaxJobs).open();
 
@@ -124,7 +124,7 @@ public class ZeebeWorkers {
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             producerTemplate.send("direct:bill-rtp-resp", exchange);
             variables.put("billRTPResponse", exchange.getIn().getBody(String.class));
-            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send();
+            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
         }).name("billRTPResp").maxJobsActive(workerMaxJobs).open();
 
@@ -133,9 +133,10 @@ public class ZeebeWorkers {
     private void pauseExec() {
         try {
             logger.info("Pausing execution for capturing intermediary status ");
-            scheduledThreadPoolExecutor.schedule(() -> {}, billTimeout, TimeUnit.SECONDS).get();
-        } catch (Exception e) {
-            throw new RuntimeException();
+            TimeUnit.SECONDS.sleep(billTimeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         }
         logger.info("Resuming execution post pause");
     }

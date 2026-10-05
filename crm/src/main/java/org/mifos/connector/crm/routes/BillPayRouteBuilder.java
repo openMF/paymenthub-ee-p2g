@@ -9,10 +9,10 @@ import org.apache.camel.model.dataformat.JsonLibrary;
 import org.mifos.connector.common.camel.ErrorHandlerRouteBuilder;
 import org.mifos.connector.crm.data.BillPaymentsReqDTO;
 import org.mifos.connector.crm.data.BillPaymentsResponseDTO;
+import org.mifos.connector.crm.properties.BillPayProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,13 +20,19 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
 
     private Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    @Value("${billPay.billAlreadyPaidId}")
-    private String billAlreadyPaidId;
+    private final ObjectMapper objectMapper;
 
-    @Value("${billPay.billPayTimeoutId}")
-    private String billPayTimeoutId;
+    private final String billAlreadyPaidId;
+
+    private final String billPayTimeoutId;
     @Autowired
     BillPaymentsResponseDTO billPaymentsResponseDTO;
+
+    public BillPayRouteBuilder(BillPayProperties billPayProperties, ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        this.billAlreadyPaidId = billPayProperties.billAlreadyPaidId();
+        this.billPayTimeoutId = billPayProperties.billPayTimeoutId();
+    }
 
     @Override
     public void configure() {
@@ -49,7 +55,6 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
                     exchange.setProperty("reason", billPaymentsResponseDTO.getReason());
                     exchange.setProperty("code", billPaymentsResponseDTO.getCode());
                     exchange.setProperty("status", billPaymentsResponseDTO.getStatus());
-                    ObjectMapper objectMapper = new ObjectMapper();
                     String jsonString = objectMapper.writeValueAsString(response);
                     exchange.getIn().setBody(jsonString);
                     logger.debug("Bill Payments Response: {}", response);

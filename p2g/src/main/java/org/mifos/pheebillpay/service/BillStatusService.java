@@ -8,23 +8,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
-import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.mifos.pheebillpay.data.BillStatusReqDTO;
 import org.mifos.pheebillpay.data.TrasactionDTO;
+import org.mifos.pheebillpay.properties.OperationsProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -34,31 +27,27 @@ public class BillStatusService {
 
     private Logger logger = LoggerFactory.getLogger(BillStatusService.class);
 
-    @Value("${operations.url}")
-    private String baseUrl;
+    private final String baseUrl;
 
-    @Value("${operations.endpoint.transactionReq}")
-    private String transactionReqEndpoint;
+    private final String transactionReqEndpoint;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
     String transactionId;
+
+    private final RestTemplate restTemplate;
+
+    public BillStatusService(OperationsProperties operationsProperties, RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+        this.baseUrl = operationsProperties.url();
+        this.transactionReqEndpoint = operationsProperties.endpoint().transactionReq();
+    }
 
     public TrasactionDTO billStatus(String tenantId, String correlationId, String billerId, String billId, String transferRequestId,
             BillStatusReqDTO body) throws NoSuchAlgorithmException, KeyStoreException, KeyManagementException, JsonProcessingException {
         TrasactionDTO trasactionDTO = new TrasactionDTO();
         String url = baseUrl + transactionReqEndpoint + "&clientCorrelationId={clientid}";
         logger.info("Url {}", url);
-        RestTemplate restTemplate = new RestTemplate();
-        CloseableHttpClient httpClient = HttpClients.custom()
-                // HttpClient 5: TLS config moved onto the connection manager
-                .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
-                        .setSSLSocketFactory(new SSLConnectionSocketFactory(
-                                new SSLContextBuilder().loadTrustMaterial(null, (certificate, authType) -> true).build(),
-                                NoopHostnameVerifier.INSTANCE))
-                        .build())
-                .build();
-        restTemplate.setRequestFactory(new HttpComponentsClientHttpRequestFactory(httpClient));
 
         HttpHeaders headers = new HttpHeaders();
         headers.set(PLATFORM_TENANT, tenantId);

@@ -32,18 +32,10 @@ import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
-import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.json.JSONObject;
 import org.mifos.pheebillpay.data.BillDetails;
 import org.mifos.pheebillpay.data.BillPaymentsReqDTO;
@@ -51,18 +43,21 @@ import org.mifos.pheebillpay.data.BillRTPReqDTO;
 import org.mifos.pheebillpay.data.BillRTPResponseDTO;
 import org.mifos.pheebillpay.data.PayerRequestDTO;
 import org.mifos.pheebillpay.data.ResponseDTO;
+import org.mifos.pheebillpay.properties.BillPayProperties;
+import org.mifos.pheebillpay.properties.ConnectorProperties;
+import org.mifos.pheebillpay.properties.PayerFspProperties;
+import org.mifos.pheebillpay.properties.StatusProperties;
+import org.mifos.pheebillpay.properties.ZeebeProperties;
 import org.mifos.pheebillpay.utils.Headers;
 import org.mifos.pheebillpay.utils.SpringWrapperUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -85,32 +80,37 @@ public class ZeebeWorkers {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Value("${zeebe.client.evenly-allocated-max-jobs}")
-    private int workerMaxJobs;
-    @Value("${connector.contactpoint}")
-    private String connectorContactPoint;
-    @Value("${billpay.contactpoint}")
-    private String billPayContactPoint;
-    @Value("${billpay.endpoint.payerRtpResponse}")
-    private String payerRtpResponseEndpoint;
-    @Value("${payer_fsp.tenant}")
-    private String payerFspTenant;
-    @Value("${payer_fsp.mockPayerUnreachable.fspId}")
-    private String mockPayerUnreachableFspId;
-    @Value("${payer_fsp.mockPayerUnreachable.financialAddress}")
-    private String mockPayerUnreachableFinancialAddress;
-    @Value("${payer_fsp.mockDebitFailed.fspId}")
-    private String mockDebitFailedFspId;
-    @Value("${payer_fsp.mockDebitFailed.financialAddress}")
-    private String mockDebitFailedFinancialAddress;
+    private final int workerMaxJobs;
+    private final String connectorContactPoint;
+    private final String billPayContactPoint;
+    private final String payerRtpResponseEndpoint;
+    private final String payerFspTenant;
+    private final String mockPayerUnreachableFspId;
+    private final String mockPayerUnreachableFinancialAddress;
+    private final String mockDebitFailedFspId;
+    private final String mockDebitFailedFinancialAddress;
 
-    @Value("${status.billAcceptedId}")
-    private String billAcceptedId;
+    private final String billAcceptedId;
 
-    @Value("${status.billTimeout}")
-    private int billTimeout;
+    private final int billTimeout;
 
-    private static final ScheduledExecutorService scheduledThreadPoolExecutor = Executors.newScheduledThreadPool(10);
+    private final RestTemplate restTemplate;
+
+    public ZeebeWorkers(ZeebeProperties zeebeProperties, ConnectorProperties connectorProperties, BillPayProperties billPayProperties,
+            PayerFspProperties payerFspProperties, StatusProperties statusProperties, RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+        this.workerMaxJobs = zeebeProperties.client().evenlyAllocatedMaxJobs();
+        this.connectorContactPoint = connectorProperties.contactpoint();
+        this.billPayContactPoint = billPayProperties.contactpoint();
+        this.payerRtpResponseEndpoint = billPayProperties.endpoint().payerRtpResponse();
+        this.payerFspTenant = payerFspProperties.tenant();
+        this.mockPayerUnreachableFspId = payerFspProperties.mockPayerUnreachable().fspId();
+        this.mockPayerUnreachableFinancialAddress = payerFspProperties.mockPayerUnreachable().financialAddress();
+        this.mockDebitFailedFspId = payerFspProperties.mockDebitFailed().fspId();
+        this.mockDebitFailedFinancialAddress = payerFspProperties.mockDebitFailed().financialAddress();
+        this.billAcceptedId = statusProperties.billAcceptedId();
+        this.billTimeout = statusProperties.billTimeout();
+    }
 
     @PostConstruct
     public void setupWorkers() {
@@ -164,7 +164,7 @@ public class ZeebeWorkers {
             variables.put(BILL_PAY_RESPONSE, exchange.getIn().getBody(String.class));
             variables.put(BILL_PAY_FAILED, exchange.getProperty(BILL_PAY_FAILED));
             logger.info("Zeebe variable {}", job.getVariablesAsMap());
-            client.newCompleteCommand(job.getKey()).variables(variables).send();
+            client.newCompleteCommand(job.getKey()).variables(variables).send().join();
         }).name("billFetchResponse").maxJobsActive(workerMaxJobs).open();
 
         // setting response to callback url for payment status
@@ -190,7 +190,7 @@ public class ZeebeWorkers {
             producerTemplate.send("direct:paymentNotification-response", exchange);
             variables.put(BILL_PAY_RESPONSE, exchange.getProperty(BILL_PAY_RESPONSE));
             variables.put("state", "SUCCESS");
-            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send();
+            zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.info("Zeebe variable {}", job.getVariablesAsMap());
         }).name("billPayResponse").maxJobsActive(workerMaxJobs).open();
 
@@ -229,7 +229,6 @@ public class ZeebeWorkers {
             payerRequestDTO.setTransactionId(variables.get(TRANSACTION_ID).toString());
             payerRequestDTO.setBillDetails(new BillDetails(billRTPReqDTO.getBillID(), billRTPReqDTO.getBillDetails().getBillerName(),
                     billRTPReqDTO.getBillDetails().getAmount()));
-            ObjectMapper objectMapper = new ObjectMapper();
             String jsonPayload = objectMapper.writeValueAsString(payerRequestDTO);
 
             HttpHeaders headers = new HttpHeaders();
@@ -241,18 +240,6 @@ public class ZeebeWorkers {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<String> requestEntity = new HttpEntity<>(jsonPayload, headers);
-
-            RestTemplate restTemplate = new RestTemplate();
-
-            CloseableHttpClient httpClient = HttpClients.custom()
-                    // HttpClient 5: TLS config moved onto the connection manager
-                    .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
-                            .setSSLSocketFactory(new SSLConnectionSocketFactory(
-                                    new SSLContextBuilder().loadTrustMaterial(null, (certificate, authType) -> true).build(),
-                                    NoopHostnameVerifier.INSTANCE))
-                            .build())
-                    .build();
-            restTemplate.setRequestFactory(new HttpComponentsClientHttpRequestFactory(httpClient));
 
             ResponseEntity<ResponseDTO> responseEntity = null;
 
@@ -267,7 +254,7 @@ public class ZeebeWorkers {
             } else {
                 variables.put(PAYER_RTP_REQ, false);
             }
-            client.newCompleteCommand(job.getKey()).variables(variables).send();
+            client.newCompleteCommand(job.getKey()).variables(variables).send().join();
         }).name("payerRtpRequest").maxJobsActive(workerMaxJobs).open();
 
         zeebeClient.newWorker().jobType("billerRtpResponse").handler((client, job) -> {
@@ -301,18 +288,6 @@ public class ZeebeWorkers {
 
             HttpEntity<BillRTPResponseDTO> requestEntity = new HttpEntity<>(billRTPResponseDTO, headers);
 
-            RestTemplate restTemplate = new RestTemplate();
-
-            CloseableHttpClient httpClient = HttpClients.custom()
-                    // HttpClient 5: TLS config moved onto the connection manager
-                    .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
-                            .setSSLSocketFactory(new SSLConnectionSocketFactory(
-                                    new SSLContextBuilder().loadTrustMaterial(null, (certificate, authType) -> true).build(),
-                                    NoopHostnameVerifier.INSTANCE))
-                            .build())
-                    .build();
-            restTemplate.setRequestFactory(new HttpComponentsClientHttpRequestFactory(httpClient));
-
             ResponseEntity<ResponseDTO> responseEntity = null;
 
             try {
@@ -320,7 +295,7 @@ public class ZeebeWorkers {
             } catch (HttpClientErrorException | HttpServerErrorException e) {
                 logger.error(e.getMessage());
             }
-            client.newCompleteCommand(job.getKey()).variables(variables).send();
+            client.newCompleteCommand(job.getKey()).variables(variables).send().join();
         }).name("billerRtpResponse").maxJobsActive(workerMaxJobs).open();
 
         zeebeClient.newWorker().jobType("sendError").handler((client, job) -> {
@@ -328,16 +303,6 @@ public class ZeebeWorkers {
             Map<String, Object> variables = job.getVariablesAsMap();
             String correlationId = variables.get(CLIENTCORRELATIONID).toString();
 
-            RestTemplate restTemplate = new RestTemplate();
-            CloseableHttpClient httpClient = HttpClients.custom()
-                    // HttpClient 5: TLS config moved onto the connection manager
-                    .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
-                            .setSSLSocketFactory(new SSLConnectionSocketFactory(
-                                    new SSLContextBuilder().loadTrustMaterial(null, (certificate, authType) -> true).build(),
-                                    NoopHostnameVerifier.INSTANCE))
-                            .build())
-                    .build();
-            restTemplate.setRequestFactory(new HttpComponentsClientHttpRequestFactory(httpClient));
             String callbackUrl = variables.get(CALLBACK_URL).toString();
             HttpHeaders headers = new HttpHeaders();
             headers.add("X-Client-Correlation-ID", correlationId);
@@ -346,7 +311,6 @@ public class ZeebeWorkers {
             headers.setContentType(MediaType.APPLICATION_JSON);
             Map<String, Object> errorInfo = new HashMap<>();
             errorInfo.put("errorMessage", variables.get("errorInformation").toString());
-            ObjectMapper objectMapper = new ObjectMapper();
             String jsonBody = null;
             try {
                 jsonBody = objectMapper.writeValueAsString(errorInfo);
@@ -362,7 +326,7 @@ public class ZeebeWorkers {
                 logger.error(e.getMessage());
             }
 
-            client.newCompleteCommand(job.getKey()).variables(variables).send();
+            client.newCompleteCommand(job.getKey()).variables(variables).send().join();
         }).name("sendError").maxJobsActive(workerMaxJobs).open();
 
     }
@@ -391,8 +355,9 @@ public class ZeebeWorkers {
     private void pauseExec() {
         try {
             logger.debug("Pausing execution for capturing intermediary status ");
-            scheduledThreadPoolExecutor.schedule(() -> {}, billTimeout, TimeUnit.SECONDS).get();
-        } catch (Exception exception) {
+            TimeUnit.SECONDS.sleep(billTimeout);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(exception);
         }
         logger.debug("Resuming execution post pause");
