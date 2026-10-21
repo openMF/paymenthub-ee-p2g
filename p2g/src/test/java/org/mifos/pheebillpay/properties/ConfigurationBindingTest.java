@@ -47,7 +47,7 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(AsyncProperties.class).queueCapacity()).isEqualTo(100);
             assertThat(context.getBean(BpmnFlowsProperties.class).billRequest()).isEqualTo("bill_request-{dfspid}");
             assertThat(context.getBean(OperationsProperties.class).endpoint().transactionReq())
-                    .isEqualTo("/transactionRequests/?page=0&size=1");
+                    .isEqualTo("/transactionRequests?page=0&size=1");
             assertThat(context.getBean(ConnectorProperties.class).contactpoint()).startsWith("http://");
             assertThat(context.getBean(ConnectorProperties.class).endpoint().payerRtp()).isEqualTo("/billTransferRequests");
             assertThat(context.getBean(StatusProperties.class).billTimeout()).isEqualTo(6);

@@ -115,7 +115,7 @@ operations:
   auth-enabled: false
   endpoint:
     transfers: "/transfers?page=0&size=1&"
-    transactionReq: "/transactionRequests/?page=0&size=1"
+    transactionReq: "/transactionRequests?page=0&size=1"
 
 status:
   billAcceptedId: "1234"
