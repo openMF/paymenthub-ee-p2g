@@ -85,6 +85,8 @@ public class ZeebeWorkers {
 
     private final int workerMaxJobs;
     private final String connectorContactPoint;
+
+    private final String payerRtpEndpoint;
     private final String billPayContactPoint;
     private final String payerRtpResponseEndpoint;
     private final String payerFspTenant;
@@ -104,6 +106,7 @@ public class ZeebeWorkers {
         this.restTemplate = restTemplate;
         this.workerMaxJobs = zeebeProperties.client().evenlyAllocatedMaxJobs();
         this.connectorContactPoint = connectorProperties.contactpoint();
+        this.payerRtpEndpoint = connectorProperties.endpoint().payerRtp();
         this.billPayContactPoint = billPayProperties.contactpoint();
         this.payerRtpResponseEndpoint = billPayProperties.endpoint().payerRtpResponse();
         this.payerFspTenant = payerFspProperties.tenant();
@@ -206,7 +209,7 @@ public class ZeebeWorkers {
         zeebeClient.newWorker().jobType("payerRtpRequest").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             Map<String, Object> variables = job.getVariablesAsMap();
-            String url = connectorContactPoint + "/billTransferRequests";
+            String url = connectorContactPoint + payerRtpEndpoint;
             String tenantId = required(variables, "tenantId");
             String clientCorrelation = (String) variables.get("X-CorrelationID");
 

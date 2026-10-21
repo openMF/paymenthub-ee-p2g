@@ -1,5 +1,6 @@
 package org.mifos.pheebillpay.properties;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -10,5 +11,9 @@ import org.springframework.validation.annotation.Validated;
  */
 @Validated
 @ConfigurationProperties(prefix = "connector")
-public record ConnectorProperties(@NotNull String contactpoint) {
+public record ConnectorProperties(@NotNull String contactpoint, @NotNull @Valid Endpoint endpoint) {
+
+    /** {@code connector.endpoint.payerRtp}: the path the payer request-to-pay is posted to. */
+    public record Endpoint(@NotNull String payerRtp) {
+    }
 }

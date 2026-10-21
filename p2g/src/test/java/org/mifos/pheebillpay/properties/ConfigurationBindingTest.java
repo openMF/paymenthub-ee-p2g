@@ -49,6 +49,7 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(OperationsProperties.class).endpoint().transactionReq())
                     .isEqualTo("/transactionRequests/?page=0&size=1");
             assertThat(context.getBean(ConnectorProperties.class).contactpoint()).startsWith("http://");
+            assertThat(context.getBean(ConnectorProperties.class).endpoint().payerRtp()).isEqualTo("/billTransferRequests");
             assertThat(context.getBean(StatusProperties.class).billTimeout()).isEqualTo(6);
         });
     }
