@@ -25,8 +25,6 @@ public class BillPaymentsService {
 
     private final String paymentNotificationFlow;
 
-    String transactionId;
-
     public BillPaymentsService(BpmnFlowsProperties bpmnFlowsProperties) {
         this.paymentNotificationFlow = bpmnFlowsProperties.paymentNotification();
     }
@@ -46,8 +44,7 @@ public class BillPaymentsService {
         extraVariables.put("payerPartyIdType", "Bill");
         extraVariables.put("payerPartyId", payerFspId);
         String tenantSpecificBpmn = paymentNotificationFlow.replace("{dfspid}", tenantId);
-        transactionId = zeebeProcessStarter.startZeebeWorkflow(tenantSpecificBpmn, body.toString(), extraVariables);
-        return transactionId;
+        return zeebeProcessStarter.startZeebeWorkflow(tenantSpecificBpmn, body.toString(), extraVariables);
     }
 
 }

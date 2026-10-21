@@ -27,8 +27,6 @@ public class BillRTPReqService {
     private ObjectMapper objectMapper;
 
     private final String billPayFlow;
-
-    String transactionId;
     private static final Logger logger = LoggerFactory.getLogger(BillRTPReqService.class);
 
     public BillRTPReqService(BpmnFlowsProperties bpmnFlowsProperties) {
@@ -60,7 +58,8 @@ public class BillRTPReqService {
 
             extraVariables.put(ZeebeVariables.BILL_RTP_REQ, jsonString);
             String tenantSpecificBpmn = billPayFlow.replace("{dfspid}", tenantId);
-            transactionId = zeebeProcessStarter.startZeebeWorkflow(tenantSpecificBpmn, body.toString(), extraVariables);
+            String transactionId = zeebeProcessStarter.startZeebeWorkflow(tenantSpecificBpmn, body.toString(), extraVariables);
+            logger.info("Started {} for bill {}: transaction {}", tenantSpecificBpmn, body.getBillID(), transactionId);
         }
 
         return phErrorDTO;

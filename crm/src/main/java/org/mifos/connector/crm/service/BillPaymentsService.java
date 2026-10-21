@@ -12,8 +12,6 @@ public class BillPaymentsService {
     @Autowired
     private BillPaymentsResponseDTO billPaymentsResponseDTO;
 
-    String transactionId;
-
     public BillPaymentsResponseDTO billPayments(String tenantId, String correlationId, String payerFspId, BillPaymentsReqDTO body) {
 
         billPaymentsResponseDTO.setBillId(body.getBillId());
