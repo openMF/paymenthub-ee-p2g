@@ -2,6 +2,7 @@ package org.mifos.pheebillpay.zeebe;
 
 import static org.mifos.pheebillpay.zeebe.JobGuards.failOnMissingVariables;
 import static org.mifos.pheebillpay.zeebe.JobGuards.required;
+import static org.mifos.pheebillpay.zeebe.JobGuards.routeFailed;
 import static org.mifos.pheebillpay.zeebe.ZeebeVariables.BILLER_ACCOUNT;
 import static org.mifos.pheebillpay.zeebe.ZeebeVariables.BILLER_DETAILS;
 import static org.mifos.pheebillpay.zeebe.ZeebeVariables.BILLER_FETCH_FAILED;
@@ -126,6 +127,9 @@ public class ZeebeWorkers {
                     .addHeader(PAYER_FSP, required(variables, "payerFspId")).addHeader(BILL_ID, required(variables, "billId")).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             producerTemplate.send("direct:biller-fetch", exchange);
+            if (routeFailed(exchange, client, job, "direct:biller-fetch")) {
+                return;
+            }
             Boolean response = exchange.getProperty(BILLER_FETCH_FAILED, Boolean.class);
             variables.put(BILLER_FETCH_FAILED, response);
             if (Boolean.FALSE.equals(response)) {
@@ -161,6 +165,9 @@ public class ZeebeWorkers {
             exchange.setProperty(ERROR_INFORMATION, variables.get(ERROR_INFORMATION));
             exchange.setProperty(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID));
             producerTemplate.send("direct:bill-inquiry-response", exchange);
+            if (routeFailed(exchange, client, job, "direct:bill-inquiry-response")) {
+                return;
+            }
             variables.put(BILL_PAY_RESPONSE, exchange.getIn().getBody(String.class));
             variables.put(BILL_PAY_FAILED, exchange.getProperty(BILL_PAY_FAILED));
             logger.info("Zeebe variable {}", job.getVariablesAsMap());
@@ -187,6 +194,9 @@ public class ZeebeWorkers {
             exchange.setProperty("reason", variables.get("reason"));
             exchange.setProperty("status", variables.get("status"));
             producerTemplate.send("direct:paymentNotification-response", exchange);
+            if (routeFailed(exchange, client, job, "direct:paymentNotification-response")) {
+                return;
+            }
             variables.put(BILL_PAY_RESPONSE, exchange.getProperty(BILL_PAY_RESPONSE));
             variables.put("state", "SUCCESS");
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();

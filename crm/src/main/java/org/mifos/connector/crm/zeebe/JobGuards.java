@@ -1,13 +1,16 @@
 package org.mifos.connector.crm.zeebe;
 
+import io.camunda.zeebe.client.api.response.ActivatedJob;
+import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.client.api.worker.JobHandler;
 import java.util.Map;
+import org.apache.camel.Exchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Checks the workers make before they complete a job. Without them a missing variable threw a NullPointerException
- * inside the handler and the workflow waited with nothing in Operate.
+ * inside the handler and a failed Camel route looked like one that worked.
  */
 public final class JobGuards {
 
@@ -45,5 +48,20 @@ public final class JobGuards {
                 client.newFailCommand(job.getKey()).retries(0).errorMessage(e.getMessage()).send().join();
             }
         };
+    }
+
+    /**
+     * True, after failing the job with one retry fewer, when the route left an exception on the exchange.
+     * producerTemplate.send does not throw, so this is the only way to see it.
+     */
+    public static boolean routeFailed(Exchange exchange, JobClient client, ActivatedJob job, String endpoint) {
+        Exception failure = exchange.getException();
+        if (failure == null) {
+            return false;
+        }
+        LOGGER.error("Job '{}' with key {}: {} failed", job.getType(), job.getKey(), endpoint, failure);
+        client.newFailCommand(job.getKey()).retries(Math.max(job.getRetries() - 1, 0))
+                .errorMessage(endpoint + " failed: " + failure.getMessage()).send().join();
+        return true;
     }
 }

@@ -2,6 +2,7 @@ package org.mifos.connector.crm.zeebe;
 
 import static org.mifos.connector.crm.zeebe.JobGuards.failOnMissingVariables;
 import static org.mifos.connector.crm.zeebe.JobGuards.required;
+import static org.mifos.connector.crm.zeebe.JobGuards.routeFailed;
 import static org.mifos.connector.crm.zeebe.ZeebeVariables.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,6 +70,9 @@ public class ZeebeWorkers {
             exchange.setProperty(BILLER_ID, required(variables, BILLER_ID));
             exchange.setProperty(BILLER_NAME, required(variables, BILLER_NAME));
             producerTemplate.send("direct:bill-inquiry", exchange);
+            if (routeFailed(exchange, client, job, "direct:bill-inquiry")) {
+                return;
+            }
             variables.put(BILL_INQUIRY_RESPONSE, exchange.getProperty(BILL_INQUIRY_RESPONSE));
             variables.put(BILL_FETCH_FAILED, exchange.getProperty(BILL_FETCH_FAILED));
             variables.put(AMOUNT, exchange.getProperty(AMOUNT));
@@ -92,6 +96,9 @@ public class ZeebeWorkers {
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers,
                     objectMapper.writeValueAsString(requestBody));
             producerTemplate.send("direct:bill-payments", exchange);
+            if (routeFailed(exchange, client, job, "direct:bill-payments")) {
+                return;
+            }
             variables.put(BILL_PAY_RESPONSE, exchange.getProperty(BILL_PAY_RESPONSE));
             variables.put("code", exchange.getProperty("code"));
             variables.put("status", exchange.getProperty("status"));
@@ -111,6 +118,9 @@ public class ZeebeWorkers {
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             // check before implementing
             producerTemplate.send("direct:send-ack", exchange);
+            if (routeFailed(exchange, client, job, "direct:send-ack")) {
+                return;
+            }
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
         })).name("billRtpAck").maxJobsActive(workerMaxJobs).open();
@@ -124,6 +134,9 @@ public class ZeebeWorkers {
                     .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID)).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             producerTemplate.send("direct:bill-rtp-resp", exchange);
+            if (routeFailed(exchange, client, job, "direct:bill-rtp-resp")) {
+                return;
+            }
             variables.put("billRTPResponse", exchange.getIn().getBody(String.class));
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
