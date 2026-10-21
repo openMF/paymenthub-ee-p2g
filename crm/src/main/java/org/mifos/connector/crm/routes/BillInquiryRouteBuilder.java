@@ -11,7 +11,6 @@ import org.mifos.connector.crm.data.BillInquiryResponseDTO;
 import org.mifos.connector.crm.properties.BillPayProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,12 +23,6 @@ public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
     private final String billIdEmptyId;
 
     private Logger logger = LoggerFactory.getLogger(this.getClass());
-
-    @Autowired
-    BillInquiryResponseDTO billInquiryResponseDTO;
-
-    @Autowired
-    private Bill billDetails;
 
     public BillInquiryRouteBuilder(BillPayProperties billPayProperties, ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -63,15 +56,20 @@ public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
                         exchange.setProperty(BILL_FETCH_FAILED, false);
                     }
                     exchange.setProperty(BILL_INQUIRY_RESPONSE, billInquiryResponseDTO);
-                    exchange.setProperty(AMOUNT, billInquiryResponseDTO.getBillDetails().getAmountonDueDate());
+                    // the failure responses carry no bill details
+                    Bill billDetails = billInquiryResponseDTO.getBillDetails();
+                    exchange.setProperty(AMOUNT, billDetails == null ? null : billDetails.getAmountonDueDate());
                     String jsonString = objectMapper.writeValueAsString(billInquiryResponseDTO);
                     exchange.getIn().setBody(jsonString);
                     logger.debug("Bill Inquiry Response: {}", jsonString);
                 });
     }
 
+    // A new response per request: these used to be injected singletons that every request
+    // wrote into, so concurrent inquiries could be answered with each other's bill.
     private BillInquiryResponseDTO setResponseBody(String clientCorrelationId, String billId, String billerID, String billerName) {
-
+        Bill billDetails = new Bill();
+        BillInquiryResponseDTO billInquiryResponseDTO = new BillInquiryResponseDTO();
         billDetails.setBillerId(billerID);
         billDetails.setBillerName(billerName);
         billDetails.setAmountonDueDate("1000");
@@ -87,6 +85,7 @@ public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
     }
 
     private BillInquiryResponseDTO setResponseBodyForInvalidBill(String clientCorrelationId) {
+        BillInquiryResponseDTO billInquiryResponseDTO = new BillInquiryResponseDTO();
         billInquiryResponseDTO.setCode(FAILED_RESPONSE_CODE.getValue());
         billInquiryResponseDTO.setReason("Invalid Bill ID");
         billInquiryResponseDTO.setClientCorrelationId(clientCorrelationId);
@@ -94,6 +93,7 @@ public class BillInquiryRouteBuilder extends ErrorHandlerRouteBuilder {
     }
 
     private BillInquiryResponseDTO setResponseBodyForEmptyBill(String clientCorrelationId) {
+        BillInquiryResponseDTO billInquiryResponseDTO = new BillInquiryResponseDTO();
         billInquiryResponseDTO.setCode(FAILED_RESPONSE_CODE.getValue());
         billInquiryResponseDTO.setReason("Empty Bill ID");
         billInquiryResponseDTO.setClientCorrelationId(clientCorrelationId);

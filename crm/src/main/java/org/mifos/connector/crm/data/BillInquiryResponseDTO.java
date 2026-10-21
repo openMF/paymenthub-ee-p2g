@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.springframework.stereotype.Component;
 
 @Getter
 @Setter
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
  * “123456789101112”, “billDetails”: [ “billerId”: “1232211”, “billerName”: “Govt. Entity”, “billStatus”: “Unpaid”,
  * “dueDate”: “04/17/23” “amountonDueDate”: “2550”, “amountAfterDueDate”: “2570”,} }
  */
-@Component
 public class BillInquiryResponseDTO implements Serializable {
 
     private String code;
