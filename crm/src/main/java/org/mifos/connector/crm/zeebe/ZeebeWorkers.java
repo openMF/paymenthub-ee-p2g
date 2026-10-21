@@ -1,5 +1,7 @@
 package org.mifos.connector.crm.zeebe;
 
+import static org.mifos.connector.crm.zeebe.JobGuards.failOnMissingVariables;
+import static org.mifos.connector.crm.zeebe.JobGuards.required;
 import static org.mifos.connector.crm.zeebe.ZeebeVariables.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,38 +58,37 @@ public class ZeebeWorkers {
     public void setupWorkers() {
 
         // fetch bill details worker for sync mock api with response
-        zeebeClient.newWorker().jobType("fetch-bill").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("fetch-bill").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            Headers headers = new Headers.HeaderBuilder().addHeader(PLATFORM_TENANT, variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString())
-                    .addHeader(PAYER_FSP, variables.get("payerFspId").toString()).addHeader(BILL_ID, variables.get(BILL_ID).toString())
-                    .build();
+            Headers headers = new Headers.HeaderBuilder().addHeader(PLATFORM_TENANT, required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID))
+                    .addHeader(PAYER_FSP, required(variables, "payerFspId")).addHeader(BILL_ID, required(variables, BILL_ID)).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
-            exchange.setProperty(BILLER_ID, variables.get(BILLER_ID).toString());
-            exchange.setProperty(BILLER_NAME, variables.get(BILLER_NAME).toString());
+            exchange.setProperty(BILLER_ID, required(variables, BILLER_ID));
+            exchange.setProperty(BILLER_NAME, required(variables, BILLER_NAME));
             producerTemplate.send("direct:bill-inquiry", exchange);
             variables.put(BILL_INQUIRY_RESPONSE, exchange.getProperty(BILL_INQUIRY_RESPONSE));
             variables.put(BILL_FETCH_FAILED, exchange.getProperty(BILL_FETCH_FAILED));
             variables.put(AMOUNT, exchange.getProperty(AMOUNT));
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
-        }).name("fetch-bill").maxJobsActive(workerMaxJobs).open();
+        })).name("fetch-bill").maxJobsActive(workerMaxJobs).open();
 
         // pay bill status worker for sync mock api with response
-        zeebeClient.newWorker().jobType("billPay").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("billPay").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            if (variables.get(BILL_ID).equals(billReqAcceptedId)) {
+            if (billReqAcceptedId.equals(variables.get(BILL_ID))) {
                 pauseExec();
             }
-            Headers headers = new Headers.HeaderBuilder().addHeader(PLATFORM_TENANT, variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString())
-                    .addHeader(PAYER_FSP, variables.get("payerFspId").toString()).build();
+            Headers headers = new Headers.HeaderBuilder().addHeader(PLATFORM_TENANT, required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID))
+                    .addHeader(PAYER_FSP, required(variables, "payerFspId")).build();
             Gson gson = new Gson();
-            BillPaymentsReqDTO requestBody = gson.fromJson((variables.get(BILL_PAYMENTS_REQ).toString()), BillPaymentsReqDTO.class);
+            BillPaymentsReqDTO requestBody = gson.fromJson((required(variables, BILL_PAYMENTS_REQ)), BillPaymentsReqDTO.class);
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers,
                     objectMapper.writeValueAsString(requestBody));
             producerTemplate.send("direct:bill-payments", exchange);
@@ -99,34 +100,34 @@ public class ZeebeWorkers {
             variables.put(BILL_PAY_FAILED, exchange.getProperty(BILL_PAY_FAILED));
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
-        }).name("billPay").maxJobsActive(workerMaxJobs).open();
+        })).name("billPay").maxJobsActive(workerMaxJobs).open();
 
-        zeebeClient.newWorker().jobType("billRtpAck").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("billRtpAck").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            Headers headers = new Headers.HeaderBuilder().addHeader("X-Platform-TenantId", variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString()).build();
+            Headers headers = new Headers.HeaderBuilder().addHeader("X-Platform-TenantId", required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID)).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             // check before implementing
             producerTemplate.send("direct:send-ack", exchange);
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
-        }).name("billRtpAck").maxJobsActive(workerMaxJobs).open();
+        })).name("billRtpAck").maxJobsActive(workerMaxJobs).open();
 
         // billRTPResp
-        zeebeClient.newWorker().jobType("billRTPResp").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("billRTPResp").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            Headers headers = new Headers.HeaderBuilder().addHeader("X-Platform-TenantId", variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString()).build();
+            Headers headers = new Headers.HeaderBuilder().addHeader("X-Platform-TenantId", required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID)).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             producerTemplate.send("direct:bill-rtp-resp", exchange);
             variables.put("billRTPResponse", exchange.getIn().getBody(String.class));
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.debug("Zeebe variable {}", job.getVariablesAsMap());
-        }).name("billRTPResp").maxJobsActive(workerMaxJobs).open();
+        })).name("billRTPResp").maxJobsActive(workerMaxJobs).open();
 
     }
 

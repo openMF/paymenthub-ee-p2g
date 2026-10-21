@@ -1,5 +1,7 @@
 package org.mifos.pheebillpay.zeebe;
 
+import static org.mifos.pheebillpay.zeebe.JobGuards.failOnMissingVariables;
+import static org.mifos.pheebillpay.zeebe.JobGuards.required;
 import static org.mifos.pheebillpay.zeebe.ZeebeVariables.BILLER_ACCOUNT;
 import static org.mifos.pheebillpay.zeebe.ZeebeVariables.BILLER_DETAILS;
 import static org.mifos.pheebillpay.zeebe.ZeebeVariables.BILLER_FETCH_FAILED;
@@ -115,19 +117,18 @@ public class ZeebeWorkers {
     @PostConstruct
     public void setupWorkers() {
         // billerdetails
-        zeebeClient.newWorker().jobType("discover-biller").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("discover-biller").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            Headers headers = new Headers.HeaderBuilder().addHeader(PLATFORM_TENANT, variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString())
-                    .addHeader(PAYER_FSP, variables.get("payerFspId").toString()).addHeader(BILL_ID, variables.get("billId").toString())
-                    .build();
+            Headers headers = new Headers.HeaderBuilder().addHeader(PLATFORM_TENANT, required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID))
+                    .addHeader(PAYER_FSP, required(variables, "payerFspId")).addHeader(BILL_ID, required(variables, "billId")).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             producerTemplate.send("direct:biller-fetch", exchange);
             Boolean response = exchange.getProperty(BILLER_FETCH_FAILED, Boolean.class);
             variables.put(BILLER_FETCH_FAILED, response);
-            if (variables.get(BILLER_FETCH_FAILED).equals(false)) {
+            if (Boolean.FALSE.equals(response)) {
                 variables.put(BILLER_DETAILS, exchange.getProperty(BILLER_DETAILS, String.class));
                 variables.put(BILLER_ID, exchange.getProperty(BILLER_ID, String.class));
                 variables.put(BILLER_NAME, exchange.getProperty(BILLER_NAME, String.class));
@@ -141,22 +142,21 @@ public class ZeebeWorkers {
 
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
 
-        }).name("discover-biller").maxJobsActive(workerMaxJobs).open();
+        })).name("discover-biller").maxJobsActive(workerMaxJobs).open();
 
         // setting callback for inquiry api
-        zeebeClient.newWorker().jobType("billFetchResponse").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("billFetchResponse").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            Headers headers = new Headers.HeaderBuilder().addHeader("Platform-TenantId", variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString())
-                    .addHeader(PAYER_FSP, variables.get("payerFspId").toString()).addHeader(BILL_ID, variables.get(BILL_ID).toString())
-                    .build();
+            Headers headers = new Headers.HeaderBuilder().addHeader("Platform-TenantId", required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID))
+                    .addHeader(PAYER_FSP, required(variables, "payerFspId")).addHeader(BILL_ID, required(variables, BILL_ID)).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
             if (variables.get(BILLER_DETAILS) != null) {
-                exchange.setProperty(BILLER_DETAILS, variables.get(BILLER_DETAILS).toString());
+                exchange.setProperty(BILLER_DETAILS, String.valueOf(variables.get(BILLER_DETAILS)));
             }
-            exchange.setProperty(CALLBACK_URL, variables.get(CALLBACK_URL).toString());
+            exchange.setProperty(CALLBACK_URL, required(variables, CALLBACK_URL));
             exchange.setProperty(BILL_INQUIRY_RESPONSE, variables.get(BILL_INQUIRY_RESPONSE));
             exchange.setProperty(ERROR_INFORMATION, variables.get(ERROR_INFORMATION));
             exchange.setProperty(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID));
@@ -165,25 +165,24 @@ public class ZeebeWorkers {
             variables.put(BILL_PAY_FAILED, exchange.getProperty(BILL_PAY_FAILED));
             logger.info("Zeebe variable {}", job.getVariablesAsMap());
             client.newCompleteCommand(job.getKey()).variables(variables).send().join();
-        }).name("billFetchResponse").maxJobsActive(workerMaxJobs).open();
+        })).name("billFetchResponse").maxJobsActive(workerMaxJobs).open();
 
         // setting response to callback url for payment status
-        zeebeClient.newWorker().jobType("billPayResponse").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("billPayResponse").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             logWorkerDetails(job);
             Map<String, Object> variables = job.getVariablesAsMap();
-            String currentBillId = variables.get(BILL_ID).toString();
+            String currentBillId = required(variables, BILL_ID);
             if (currentBillId.equals(billAcceptedId)) {
                 logger.debug("Bill Id matches, moving to execution pause");
                 pauseExec();
             }
-            Headers headers = new Headers.HeaderBuilder().addHeader("Platform-TenantId", variables.get(TENANT_ID).toString())
-                    .addHeader(CLIENTCORRELATIONID, variables.get(CLIENTCORRELATIONID).toString())
-                    .addHeader(PAYER_FSP, variables.get("payerFspId").toString()).addHeader(BILL_ID, variables.get(BILL_ID).toString())
-                    .build();
+            Headers headers = new Headers.HeaderBuilder().addHeader("Platform-TenantId", required(variables, TENANT_ID))
+                    .addHeader(CLIENTCORRELATIONID, required(variables, CLIENTCORRELATIONID))
+                    .addHeader(PAYER_FSP, required(variables, "payerFspId")).addHeader(BILL_ID, required(variables, BILL_ID)).build();
             Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers, null);
-            exchange.setProperty(CALLBACK_URL, variables.get(CALLBACK_URL).toString());
-            exchange.setProperty(BILL_PAY_RESPONSE, variables.get(BILL_PAY_RESPONSE).toString());
+            exchange.setProperty(CALLBACK_URL, required(variables, CALLBACK_URL));
+            exchange.setProperty(BILL_PAY_RESPONSE, required(variables, BILL_PAY_RESPONSE));
             exchange.setProperty("code", variables.get("code"));
             exchange.setProperty("reason", variables.get("reason"));
             exchange.setProperty("status", variables.get("status"));
@@ -192,19 +191,19 @@ public class ZeebeWorkers {
             variables.put("state", "SUCCESS");
             zeebeClient.newCompleteCommand(job.getKey()).variables(variables).send().join();
             logger.info("Zeebe variable {}", job.getVariablesAsMap());
-        }).name("billPayResponse").maxJobsActive(workerMaxJobs).open();
+        })).name("billPayResponse").maxJobsActive(workerMaxJobs).open();
 
-        zeebeClient.newWorker().jobType("payerRtpRequest").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("payerRtpRequest").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             Map<String, Object> variables = job.getVariablesAsMap();
             String url = connectorContactPoint + "/billTransferRequests";
-            String tenantId = variables.get("tenantId").toString();
+            String tenantId = required(variables, "tenantId");
             String clientCorrelation = (String) variables.get("X-CorrelationID");
 
             variables.put("payerTenantId", payerFspTenant);
             variables.put("payerCallbackUrl", billPayContactPoint + payerRtpResponseEndpoint);
-            String body = variables.get(BILL_RTP_REQ).toString();
-            String billerId = variables.get("billerId").toString();
+            String body = required(variables, BILL_RTP_REQ);
+            String billerId = required(variables, "billerId");
             BillRTPReqDTO billRTPReqDTO = objectMapper.readValue(body, BillRTPReqDTO.class);
             if (billRTPReqDTO.getPayerFspDetails() != null) {
                 if (billRTPReqDTO.getPayerFspDetails().getPayerFSPID().equals(mockPayerUnreachableFspId)
@@ -226,7 +225,7 @@ public class ZeebeWorkers {
             PayerRequestDTO payerRequestDTO = new PayerRequestDTO();
             payerRequestDTO.setRequestId(String.valueOf(job.getElementInstanceKey()));
             payerRequestDTO.setRtpId(123456);
-            payerRequestDTO.setTransactionId(variables.get(TRANSACTION_ID).toString());
+            payerRequestDTO.setTransactionId(required(variables, TRANSACTION_ID));
             payerRequestDTO.setBillDetails(new BillDetails(billRTPReqDTO.getBillID(), billRTPReqDTO.getBillDetails().getBillerName(),
                     billRTPReqDTO.getBillDetails().getAmount()));
             String jsonPayload = objectMapper.writeValueAsString(payerRequestDTO);
@@ -255,21 +254,21 @@ public class ZeebeWorkers {
                 variables.put(PAYER_RTP_REQ, false);
             }
             client.newCompleteCommand(job.getKey()).variables(variables).send().join();
-        }).name("payerRtpRequest").maxJobsActive(workerMaxJobs).open();
+        })).name("payerRtpRequest").maxJobsActive(workerMaxJobs).open();
 
-        zeebeClient.newWorker().jobType("billerRtpResponse").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("billerRtpResponse").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             Map<String, Object> variables = job.getVariablesAsMap();
-            String tenantId = variables.get(TENANT_ID).toString();
-            String correlationId = variables.get(CLIENTCORRELATIONID).toString();
-            String callbackUrl = variables.get(CALLBACK_URL).toString();
+            String tenantId = required(variables, TENANT_ID);
+            String correlationId = required(variables, CLIENTCORRELATIONID);
+            String callbackUrl = required(variables, CALLBACK_URL);
             HttpHeaders headers = new HttpHeaders();
 
-            String billId = variables.get(BILL_ID).toString();
-            String billerName = variables.get(BILLER_NAME).toString();
-            String amount = variables.get(BILL_AMOUNT).toString();
-            String rtpStatus = variables.get(RTP_STATUS).toString();
-            String rtpId = variables.get(RTP_ID).toString();
+            String billId = required(variables, BILL_ID);
+            String billerName = required(variables, BILLER_NAME);
+            String amount = required(variables, BILL_AMOUNT);
+            String rtpStatus = required(variables, RTP_STATUS);
+            String rtpId = required(variables, RTP_ID);
             BillPaymentsReqDTO billPaymentsReqDTO = new BillPaymentsReqDTO(correlationId, generateUniqueNumber(12), billId,
                     generateUniqueNumber(12));
             variables.put(BILL_PAYMENTS_REQ, billPaymentsReqDTO);
@@ -296,21 +295,21 @@ public class ZeebeWorkers {
                 logger.error(e.getMessage());
             }
             client.newCompleteCommand(job.getKey()).variables(variables).send().join();
-        }).name("billerRtpResponse").maxJobsActive(workerMaxJobs).open();
+        })).name("billerRtpResponse").maxJobsActive(workerMaxJobs).open();
 
-        zeebeClient.newWorker().jobType("sendError").handler((client, job) -> {
+        zeebeClient.newWorker().jobType("sendError").handler(failOnMissingVariables((client, job) -> {
             logger.info("Job '{}' started from process '{}' with key {}", job.getType(), job.getBpmnProcessId(), job.getKey());
             Map<String, Object> variables = job.getVariablesAsMap();
-            String correlationId = variables.get(CLIENTCORRELATIONID).toString();
+            String correlationId = required(variables, CLIENTCORRELATIONID);
 
-            String callbackUrl = variables.get(CALLBACK_URL).toString();
+            String callbackUrl = required(variables, CALLBACK_URL);
             HttpHeaders headers = new HttpHeaders();
             headers.add("X-Client-Correlation-ID", correlationId);
             ResponseEntity<String> responseEntity = null;
 
             headers.setContentType(MediaType.APPLICATION_JSON);
             Map<String, Object> errorInfo = new HashMap<>();
-            errorInfo.put("errorMessage", variables.get("errorInformation").toString());
+            errorInfo.put("errorMessage", String.valueOf(variables.getOrDefault("errorInformation", "unknown error")));
             String jsonBody = null;
             try {
                 jsonBody = objectMapper.writeValueAsString(errorInfo);
@@ -327,7 +326,7 @@ public class ZeebeWorkers {
             }
 
             client.newCompleteCommand(job.getKey()).variables(variables).send().join();
-        }).name("sendError").maxJobsActive(workerMaxJobs).open();
+        })).name("sendError").maxJobsActive(workerMaxJobs).open();
 
     }
 
