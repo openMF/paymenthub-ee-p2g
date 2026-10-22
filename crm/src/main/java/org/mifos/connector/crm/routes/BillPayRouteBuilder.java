@@ -12,7 +12,6 @@ import org.mifos.connector.crm.data.BillPaymentsResponseDTO;
 import org.mifos.connector.crm.properties.BillPayProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -25,8 +24,6 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
     private final String billAlreadyPaidId;
 
     private final String billPayTimeoutId;
-    @Autowired
-    BillPaymentsResponseDTO billPaymentsResponseDTO;
 
     public BillPayRouteBuilder(BillPayProperties billPayProperties, ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -52,9 +49,9 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
                     }
                     exchange.setProperty("billPayFailed", false);
                     exchange.setProperty(BILL_PAY_RESPONSE, response);
-                    exchange.setProperty("reason", billPaymentsResponseDTO.getReason());
-                    exchange.setProperty("code", billPaymentsResponseDTO.getCode());
-                    exchange.setProperty("status", billPaymentsResponseDTO.getStatus());
+                    exchange.setProperty("reason", response.getReason());
+                    exchange.setProperty("code", response.getCode());
+                    exchange.setProperty("status", response.getStatus());
                     String jsonString = objectMapper.writeValueAsString(response);
                     exchange.getIn().setBody(jsonString);
                     logger.debug("Bill Payments Response: {}", response);
@@ -63,6 +60,7 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
     }
 
     private BillPaymentsResponseDTO setResponseBodyForSuccess(BillPaymentsReqDTO billPaymentsReqDTO) {
+        BillPaymentsResponseDTO billPaymentsResponseDTO = new BillPaymentsResponseDTO();
 
         billPaymentsResponseDTO.setBillId(billPaymentsReqDTO.getBillId());
         billPaymentsResponseDTO.setCode(SUCCESS_RESPONSE_CODE.getValue());
@@ -74,6 +72,7 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
     }
 
     private BillPaymentsResponseDTO setResponseBodyForBillPaid(BillPaymentsReqDTO billPaymentsReqDTO) {
+        BillPaymentsResponseDTO billPaymentsResponseDTO = new BillPaymentsResponseDTO();
 
         billPaymentsResponseDTO.setBillId(billPaymentsReqDTO.getBillId());
         billPaymentsResponseDTO.setCode(FAILED_RESPONSE_CODE.getValue());
@@ -85,6 +84,7 @@ public class BillPayRouteBuilder extends ErrorHandlerRouteBuilder {
     }
 
     private BillPaymentsResponseDTO setResponseBodyForBillPayTimeout(BillPaymentsReqDTO billPaymentsReqDTO) {
+        BillPaymentsResponseDTO billPaymentsResponseDTO = new BillPaymentsResponseDTO();
 
         billPaymentsResponseDTO.setBillId(billPaymentsReqDTO.getBillId());
         billPaymentsResponseDTO.setCode(FAILED_RESPONSE_CODE.getValue());

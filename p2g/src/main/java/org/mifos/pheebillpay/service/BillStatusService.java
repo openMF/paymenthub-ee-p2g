@@ -33,8 +33,6 @@ public class BillStatusService {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    String transactionId;
-
     private final RestTemplate restTemplate;
 
     public BillStatusService(OperationsProperties operationsProperties, RestTemplate restTemplate) {

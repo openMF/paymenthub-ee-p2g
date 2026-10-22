@@ -13,7 +13,9 @@ import org.mifos.connector.crm.data.BillPaymentsResponseDTO;
 import org.mifos.connector.crm.utils.Headers;
 import org.mifos.connector.crm.utils.SpringWrapperUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class BillPaymentsController implements BillPaymentsApi {
@@ -32,6 +34,11 @@ public class BillPaymentsController implements BillPaymentsApi {
         Exchange exchange = SpringWrapperUtil.getDefaultWrappedExchange(producerTemplate.getCamelContext(), headers,
                 objectMapper.writeValueAsString(requestBody));
         producerTemplate.send("direct:bill-payments", exchange);
+        if (exchange.getException() != null) {
+            // send() leaves the failure on the exchange; answering 200 with an empty body hid it.
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "direct:bill-payments failed: " + exchange.getException().getMessage(), exchange.getException());
+        }
         return exchange.getIn().getBody(BillPaymentsResponseDTO.class);
     }
 }

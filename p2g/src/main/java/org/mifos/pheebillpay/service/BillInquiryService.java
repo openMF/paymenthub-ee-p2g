@@ -29,8 +29,6 @@ public class BillInquiryService {
 
     private final String fspNotOnboarded;
 
-    String transactionId;
-
     public BillInquiryService(BpmnFlowsProperties bpmnFlowsProperties, BillPayProperties billPayProperties) {
         this.billPayFlow = bpmnFlowsProperties.billPay();
         this.fspNotOnboarded = billPayProperties.fspNotOnboarded();
@@ -38,6 +36,7 @@ public class BillInquiryService {
 
     public String billInquiry(String tenantId, String correlationId, String callbackUrl, String payerFspId, String billId, String field) {
         Map<String, Object> extraVariables = new HashMap<>();
+        String transactionId;
         if (billId.equals(fspNotOnboarded)) {
             transactionId = "Participant Not Onboarded";
         } else {
