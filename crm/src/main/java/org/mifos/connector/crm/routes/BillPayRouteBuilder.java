@@ -1,7 +1,13 @@
 package org.mifos.connector.crm.routes;
 
-import static org.mifos.connector.crm.utils.BillPayEnum.*;
-import static org.mifos.connector.crm.zeebe.ZeebeVariables.*;
+import static org.mifos.connector.crm.utils.BillPayEnum.FAILED_DUPLICATE_PAYMENT_MESSAGE;
+import static org.mifos.connector.crm.utils.BillPayEnum.FAILED_RESPONSE_CODE;
+import static org.mifos.connector.crm.utils.BillPayEnum.FAILED_STATUS;
+import static org.mifos.connector.crm.utils.BillPayEnum.FAILED_TIMEOUT_MESSAGE;
+import static org.mifos.connector.crm.utils.BillPayEnum.SUCCESS_RESPONSE_CODE;
+import static org.mifos.connector.crm.utils.BillPayEnum.SUCCESS_RESPONSE_MESSAGE;
+import static org.mifos.connector.crm.utils.BillPayEnum.SUCCESS_STATUS;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.BILL_PAY_RESPONSE;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;

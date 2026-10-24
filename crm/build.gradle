@@ -294,15 +294,12 @@ configure(this) {
 java.sourceCompatibility = JavaVersion.VERSION_21
 java.targetCompatibility = JavaVersion.VERSION_21
 
-// Checkstyle was already failing on master (wildcard imports, whitespace —
-// violations pre-date this migration). Kept as a report, not a gate, to keep
-// the Jakarta/SB3.4 migration surgical. Style cleanup is a separate concern.
-// Each module keeps its own checkstyle config: the two files are not
-// identical, so they cannot be merged into one at the repository root
-// (which is where the plugin looks by default in a multi-module build).
+// Checkstyle fails the build, as it does in p2g. Each module keeps its own
+// checkstyle config: the two files are not identical, so they cannot be merged
+// into one at the repository root (which is where the plugin looks by default
+// in a multi-module build).
 checkstyle {
     configDirectory = file("$projectDir/config/checkstyle")
-    ignoreFailures = true
 }
 
 // Fixed jar name so the Dockerfile can copy the boot jar by name. `gradlew build`

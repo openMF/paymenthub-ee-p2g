@@ -1,6 +1,8 @@
 package org.mifos.connector.crm.api.definition;
 
-import static org.mifos.connector.crm.zeebe.ZeebeVariables.*;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.CLIENTCORRELATIONID;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.PAYER_FSP;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.PLATFORM_TENANT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -8,7 +10,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.concurrent.ExecutionException;
 import org.mifos.connector.crm.data.BillPaymentsReqDTO;
 import org.mifos.connector.crm.data.BillPaymentsResponseDTO;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 @Tag(name = "GOV")
 public interface BillPaymentsApi {

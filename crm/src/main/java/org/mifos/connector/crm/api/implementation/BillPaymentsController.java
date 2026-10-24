@@ -1,6 +1,8 @@
 package org.mifos.connector.crm.api.implementation;
 
-import static org.mifos.connector.crm.zeebe.ZeebeVariables.*;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.CLIENTCORRELATIONID;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.PAYER_FSP;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.PLATFORM_TENANT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

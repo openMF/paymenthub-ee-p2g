@@ -1,6 +1,10 @@
 package org.mifos.connector.crm.api.definition;
 
-import static org.mifos.connector.crm.zeebe.ZeebeVariables.*;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.BILL_ID;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.CLIENTCORRELATIONID;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.FIELDS;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.PAYER_FSP;
+import static org.mifos.connector.crm.zeebe.ZeebeVariables.PLATFORM_TENANT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.swagger.v3.oas.annotations.Operation;
