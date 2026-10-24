@@ -1,6 +1,6 @@
 package org.mifos.connector.crm.zeebe;
 
-public class ZeebeVariables {
+public final class ZeebeVariables {
 
     private ZeebeVariables() {}
 

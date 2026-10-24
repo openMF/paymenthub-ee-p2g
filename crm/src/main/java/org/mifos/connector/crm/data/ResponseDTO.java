@@ -11,8 +11,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ResponseDTO {
 
-    private String ResponseCode;
-    private String ResponseDescription;
-    private String RequestID;
+    private String responseCode;
+    private String responseDescription;
+    private String requestID;
 
 }

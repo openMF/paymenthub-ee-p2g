@@ -10,6 +10,9 @@ import org.springframework.context.annotation.ComponentScan;
 @ComponentScan("org.mifos.connector.crm")
 public class PheeConnectorCrmApplication {
 
+    // Spring instantiates (and subclasses) this configuration class, so the constructor can't be private.
+    protected PheeConnectorCrmApplication() {}
+
     public static void main(String[] args) {
         SpringApplication.run(PheeConnectorCrmApplication.class, args);
     }
