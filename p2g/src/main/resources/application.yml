@@ -84,12 +84,12 @@ billpay:
     payerRtpResponse: "/billTransferRequests"
 
 payer_fsp:
-  tenant: "lion"
+  tenant: "greenbank"
   mockPayerUnreachable:
-    fspId: "rhino"
+    fspId: "greenbank"
     financialAddress: "122333"
   mockDebitFailed:
-    fspId: "rhino"
+    fspId: "greenbank"
     financialAddress: "1223334444"
 
 billPay:

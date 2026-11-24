@@ -72,7 +72,7 @@ class ConfigurationBindingTest {
     void bindsThePayerFspPrefixWithItsUnderscore() {
         runner.run(context -> {
             PayerFspProperties properties = context.getBean(PayerFspProperties.class);
-            assertThat(properties.tenant()).isEqualTo("lion");
+            assertThat(properties.tenant()).isEqualTo("greenbank");
             assertThat(properties.mockPayerUnreachable().financialAddress()).isEqualTo("122333");
             assertThat(properties.mockDebitFailed().financialAddress()).isEqualTo("1223334444");
         });
